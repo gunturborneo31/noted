@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Neo-Brutalism Component Classes ─────────────────────────────── */
+@layer components {
+
+    /* Base button */
+    .neo-btn {
+        @apply inline-flex items-center justify-center
+               border-4 border-black
+               font-bold
+               shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]
+               transition-all duration-75
+               cursor-pointer
+               select-none
+               px-4 py-2
+               active:translate-x-[2px] active:translate-y-[2px] active:shadow-none;
+    }
+
+    /* Input / Textarea / Select */
+    .neo-input {
+        @apply border-4 border-black
+               bg-white
+               px-3 py-2
+               font-mono
+               outline-none
+               focus:ring-0
+               focus:border-lime-500
+               focus:bg-lime-50
+               placeholder:text-gray-400
+               placeholder:font-mono;
+    }
+
+    /* Label */
+    .neo-label {
+        @apply block font-black text-sm uppercase mb-1 tracking-wide;
+    }
+
+    /* Card */
+    .neo-card {
+        @apply border-4 border-black
+               bg-white
+               shadow-[4px_4px_0px_0px_rgba(0,0,0,1)];
+    }
+
+    /* Badge */
+    .neo-badge {
+        @apply border-2 border-black
+               px-2 py-0.5
+               text-xs font-bold
+               shadow-[2px_2px_0px_0px_rgba(0,0,0,1)];
+    }
+}
+
+/* ── Prose / Note Body ────────────────────────────────────────────── */
+.note-body p          { @apply mb-3 leading-relaxed; }
+.note-body h1         { @apply text-2xl font-black mt-6 mb-2; }
+.note-body h2         { @apply text-xl font-black mt-5 mb-2; }
+.note-body h3         { @apply text-lg font-black mt-4 mb-1; }
+.note-body a          { @apply underline text-lime-700 font-bold; }
+.note-body strong     { @apply font-black; }
+.note-body code       { @apply bg-lime-100 border border-black px-1 text-sm font-mono; }
+.note-body ul         { @apply space-y-2 my-3; }
+.note-body hr         { @apply border-t-2 border-black my-4; }
+
+/* ── Scrollbar (thin + branded) ──────────────────────────────────── */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #a3e635 #f3f4f6;
+}
+*::-webkit-scrollbar       { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: #f3f4f6; }
+*::-webkit-scrollbar-thumb { background: #a3e635; border: 1px solid #000; }
+
+/* Cloak for Alpine.js */
+[x-cloak] { display: none !important; }
