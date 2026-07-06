@@ -1,12 +1,47 @@
-<div class="flex gap-0 min-h-[80vh]" x-data="{}">
+<div class="space-y-4" x-data="{ orderSaved: false, clientOrderSaved: false, showSaved(){ this.orderSaved = true; clearTimeout(this._savedTimer); this._savedTimer = setTimeout(() => this.orderSaved = false, 1000); }, showClientSaved(){ this.clientOrderSaved = true; clearTimeout(this._clientSavedTimer); this._clientSavedTimer = setTimeout(() => this.clientOrderSaved = false, 1000); } }" x-on:project-order-saved.window="showSaved()" x-on:client-order-saved.window="showClientSaved()">
+    <div class="neo-card p-3 flex flex-wrap items-center gap-2 bg-lime-50">
+        <span class="text-xs font-black uppercase">View:</span>
+        <button wire:click="setViewMode('project')"
+                class="neo-btn text-sm px-3 py-1 {{ $viewMode === 'project' ? 'bg-black text-lime-400' : 'bg-white text-black' }}">
+            Per Project
+        </button>
+        <button wire:click="setViewMode('all')"
+                class="neo-btn text-sm px-3 py-1 {{ $viewMode === 'all' ? 'bg-black text-lime-400' : 'bg-white text-black' }}">
+            Semua Pekerjaan
+        </button>
+
+        <span class="text-xs font-black uppercase ml-3">Status:</span>
+        <label class="inline-flex items-center gap-1 text-xs font-bold border-2 border-black bg-white px-2 py-1 cursor-pointer">
+            <input type="checkbox" wire:model.live="statusFilters.todo" class="w-3.5 h-3.5 border-black" />
+            To Do
+        </label>
+        <label class="inline-flex items-center gap-1 text-xs font-bold border-2 border-black bg-white px-2 py-1 cursor-pointer">
+            <input type="checkbox" wire:model.live="statusFilters.in_progress" class="w-3.5 h-3.5 border-black" />
+            In Progress
+        </label>
+        <label class="inline-flex items-center gap-1 text-xs font-bold border-2 border-black bg-white px-2 py-1 cursor-pointer">
+            <input type="checkbox" wire:model.live="statusFilters.done" class="w-3.5 h-3.5 border-black" />
+            Done
+        </label>
+    </div>
+
+<div class="flex gap-0 min-h-[80vh]">
 
     {{-- Sidebar: Client → Project Tree --}}
-    <aside class="w-full md:w-64 shrink-0 border-4 border-black bg-gradient-to-b from-lime-50 to-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] md:mr-6 mb-6 md:mb-0 self-start">
+    <aside class="w-full md:w-64 shrink-0 border-4 border-black bg-gradient-to-b from-lime-50 to-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] md:mr-6 mb-6 md:mb-0 self-start {{ $viewMode === 'all' ? 'hidden md:hidden' : '' }}">
         <div class="border-b-4 border-black bg-lime-400 px-4 py-3 flex items-center justify-between">
-            <span class="font-black uppercase text-sm">Projects</span>
-            <button wire:click="$set('showCreateTask', false)"
-                    x-data x-on:click="$dispatch('open-new-project')"
-                    class="neo-btn bg-black text-lime-400 px-2 py-0.5 text-xs">+ New</button>
+            <div class="flex items-center gap-2">
+                <span class="font-black uppercase text-sm">Projects</span>
+                <span x-show="orderSaved" x-transition.opacity class="text-[10px] font-black uppercase border-2 border-black bg-black text-lime-400 px-1.5 py-0.5">Urutan Tersimpan</span>
+                <span x-show="clientOrderSaved" x-transition.opacity class="text-[10px] font-black uppercase border-2 border-black bg-black text-lime-400 px-1.5 py-0.5">Client Tersimpan</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button wire:click="toggleManageMode"
+                        class="neo-btn px-2 py-0.5 text-xs {{ $manageMode ? 'bg-black text-lime-400' : 'bg-white text-black' }}">Edit</button>
+                <button wire:click="$set('showCreateTask', false)"
+                        x-data x-on:click="$dispatch('open-new-project')"
+                        class="neo-btn bg-black text-lime-400 px-2 py-0.5 text-xs">+ New</button>
+            </div>
         </div>
 
         {{-- New Project Form --}}
@@ -37,22 +72,62 @@
         </div>
 
         {{-- Tree --}}
-        <div class="overflow-y-auto max-h-[70vh]">
+        <div x-data="clientSorter($wire)" class="overflow-y-auto max-h-[70vh]">
             @forelse($clients as $client)
-                <div x-data="{ open: true }">
-                    <button @click="open = !open"
-                            class="w-full text-left px-3 py-2 font-black text-sm border-b-2 border-black bg-lime-200 hover:bg-lime-300 flex items-center justify-between">
-                        <span>{{ $client->name }}</span>
-                        <span x-text="open ? '▲' : '▼'" class="text-xs"></span>
-                    </button>
-                    <div x-show="open" class="divide-y divide-gray-200">
-                        @foreach($client->projects as $project)
-                            <button wire:click="selectProject({{ $project->id }})"
-                                    class="w-full text-left px-4 py-2 text-sm font-bold hover:bg-lime-50 flex items-center justify-between gap-1
-                                        {{ $selectedProjectId === $project->id ? 'bg-lime-400 border-l-4 border-black' : '' }}">
-                                <span class="truncate">{{ $project->project_name }}</span>
-                                <span class="text-xs font-bold text-gray-500 shrink-0">{{ $project->tasks_count }}</span>
+                <div data-client-id="{{ $client->id }}"
+                     x-on:dragover.prevent
+                     x-on:drop="dropOn($event, {{ $client->id }})"
+                     x-bind:class="draggingClientId === {{ $client->id }} ? 'opacity-60 border-2 border-dashed border-black' : ''"
+                     x-data="{ open: true }">
+                    <div class="w-full px-3 py-2 border-b-2 border-black bg-lime-200 hover:bg-lime-300 flex items-center gap-2">
+                        @if($manageMode && $editingClientId === $client->id)
+                            <input wire:model="editingClientName" class="neo-input flex-1 text-sm py-1 px-2" />
+                            <button wire:click="saveClientName" class="neo-btn bg-lime-400 text-black text-xs px-2 py-0.5">Save</button>
+                            <button wire:click="cancelEditClient" class="neo-btn bg-white text-black text-xs px-2 py-0.5">Batal</button>
+                        @else
+                            <button @click="open = !open"
+                                    draggable="true"
+                                    x-on:dragstart="startDrag($event, {{ $client->id }})"
+                                    x-on:dragend="endDrag()"
+                                    class="flex-1 text-left font-black text-sm flex items-center justify-between">
+                                <span>{{ $client->name }}</span>
+                                <span x-text="open ? '▲' : '▼'" class="text-xs"></span>
                             </button>
+                            @if($manageMode)
+                                <button wire:click="startEditClient({{ $client->id }})" class="neo-btn bg-white text-black text-xs px-2 py-0.5">Edit</button>
+                                <button wire:click="deleteClient({{ $client->id }})" wire:confirm="Hapus client ini beserta semua project dan task-nya?" class="neo-btn bg-red-400 text-white text-xs px-2 py-0.5">Hapus</button>
+                            @endif
+                        @endif
+                    </div>
+                    <div x-show="open" x-data="projectSorter({{ $client->id }}, $wire)" class="divide-y divide-gray-200">
+                        @foreach($client->projects as $project)
+                            <div data-sort-id="{{ $project->id }}"
+                                 x-on:dragover.prevent
+                                 x-on:drop="dropOn($event, {{ $project->id }})"
+                                 x-on:dragend="endDrag()"
+                                 x-bind:class="draggingId === {{ $project->id }} ? 'opacity-60 border-2 border-dashed border-black' : ''"
+                                 class="px-3 py-2 text-sm font-bold hover:bg-lime-50 flex items-center gap-2 cursor-pointer {{ $selectedProjectId === $project->id ? 'bg-lime-400 border-l-4 border-black' : '' }}">
+                                @if($manageMode && $editingProjectId === $project->id)
+                                    <input wire:model="editingProjectName" class="neo-input flex-1 text-sm py-1 px-2" />
+                                    <button wire:click="saveProjectName" class="neo-btn bg-lime-400 text-black text-xs px-2 py-0.5">Save</button>
+                                    <button wire:click="cancelEditProject" class="neo-btn bg-white text-black text-xs px-2 py-0.5">Batal</button>
+                                @else
+                                    <button wire:click="selectProject({{ $project->id }})"
+                                            draggable="true"
+                                            x-on:dragstart="startDrag($event, {{ $project->id }})"
+                                            class="flex-1 text-left truncate cursor-pointer select-none"
+                                            title="Geser judul untuk ubah urutan">
+                                        {{ $project->project_name }}
+                                    </button>
+                                    <div class="flex items-center gap-1 shrink-0">
+                                        <span class="text-xs font-bold text-gray-500">{{ $project->open_tasks_count }}</span>
+                                        @if($manageMode)
+                                            <button wire:click="startEditProject({{ $project->id }})" class="neo-btn bg-white text-black text-xs px-2 py-0.5">Edit</button>
+                                            <button wire:click="deleteProject({{ $project->id }})" wire:confirm="Hapus project ini beserta semua task-nya?" class="neo-btn bg-red-400 text-white text-xs px-2 py-0.5">Hapus</button>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
                         @endforeach
                     </div>
                 </div>
@@ -62,9 +137,209 @@
         </div>
     </aside>
 
+    <script>
+        window.clientSorter = window.clientSorter || function clientSorter(wire) {
+            return {
+                draggingClientId: null,
+                startDrag(event, clientId) {
+                    this.draggingClientId = Number(clientId);
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', JSON.stringify({ type: 'client', clientId }));
+                },
+                endDrag() {
+                    this.draggingClientId = null;
+                },
+                dropOn(event, targetClientId) {
+                    event.preventDefault();
+                    const raw = event.dataTransfer.getData('text/plain');
+                    if (!raw) return;
+
+                    let payload;
+                    try {
+                        payload = JSON.parse(raw);
+                    } catch (_) {
+                        return;
+                    }
+
+                    if (payload.type !== 'client') {
+                        return;
+                    }
+
+                    const draggedId = Number(payload.clientId);
+                    const targetId = Number(targetClientId);
+                    if (!draggedId || !targetId || draggedId === targetId) {
+                        this.draggingClientId = null;
+                        return;
+                    }
+
+                    const ids = Array.from(event.currentTarget.parentElement.querySelectorAll(':scope > [data-client-id]'))
+                        .map((el) => Number(el.dataset.clientId));
+
+                    const from = ids.indexOf(draggedId);
+                    const to = ids.indexOf(targetId);
+                    if (from === -1 || to === -1) {
+                        this.draggingClientId = null;
+                        return;
+                    }
+
+                    ids.splice(from, 1);
+                    ids.splice(to, 0, draggedId);
+                    wire.reorderClients(ids);
+                    this.draggingClientId = null;
+                },
+            };
+        };
+
+        window.projectSorter = window.projectSorter || function projectSorter(clientId, wire) {
+            return {
+                draggingId: null,
+                startDrag(event, projectId) {
+                    this.draggingId = Number(projectId);
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', JSON.stringify({ type: 'project', clientId, projectId }));
+                },
+                endDrag() {
+                    this.draggingId = null;
+                },
+                dropOn(event, targetProjectId) {
+                    event.preventDefault();
+                    const raw = event.dataTransfer.getData('text/plain');
+                    if (!raw) return;
+
+                    let payload;
+                    try {
+                        payload = JSON.parse(raw);
+                    } catch (_) {
+                        return;
+                    }
+
+                    if (payload.type !== 'project') {
+                        return;
+                    }
+
+                    if (Number(payload.clientId) !== Number(clientId)) {
+                        return;
+                    }
+
+                    const draggedId = Number(payload.projectId);
+                    const targetId = Number(targetProjectId);
+                    if (!draggedId || !targetId || draggedId === targetId) {
+                        this.draggingId = null;
+                        return;
+                    }
+
+                    const ids = Array.from(event.currentTarget.parentElement.querySelectorAll(':scope > [data-sort-id]'))
+                        .map((el) => Number(el.dataset.sortId));
+
+                    const from = ids.indexOf(draggedId);
+                    const to = ids.indexOf(targetId);
+                    if (from === -1 || to === -1) {
+                        this.draggingId = null;
+                        return;
+                    }
+
+                    ids.splice(from, 1);
+                    ids.splice(to, 0, draggedId);
+                    wire.reorderProjects(clientId, ids);
+                    this.draggingId = null;
+                },
+            };
+        };
+    </script>
+
     {{-- Task List --}}
     <div class="flex-1 min-w-0">
-        @if($selectedProjectId)
+        @if($viewMode === 'all')
+            <div class="border-4 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <div class="border-b-4 border-black bg-gradient-to-r from-lime-400 to-lime-300 px-4 py-3 space-y-3">
+                    <h2 class="font-black text-lg uppercase">Semua Pekerjaan</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                        <input wire:model.live.debounce.300ms="allSearch"
+                               type="text"
+                               placeholder="Cari pekerjaan..."
+                               class="neo-input w-full md:col-span-2 bg-white" />
+
+                        <select wire:model.live="allClientId" class="neo-input w-full bg-white">
+                            <option value="">Semua Client</option>
+                            @foreach($clients as $client)
+                                <option value="{{ $client->id }}">{{ $client->name }}</option>
+                            @endforeach
+                        </select>
+
+                        <select wire:model.live="allProjectId" class="neo-input w-full bg-white">
+                            <option value="">Semua Project</option>
+                            @foreach($allFilterProjects as $project)
+                                <option value="{{ $project->id }}">{{ $project->project_name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="flex justify-end">
+                        <button wire:click="resetAllFilters" class="neo-btn bg-white text-black text-sm px-3 py-1">Reset Filter</button>
+                    </div>
+                </div>
+
+                <div class="divide-y-2 divide-black">
+                    @forelse($tasks as $task)
+                        @php
+                            $overdue = $task->isOverdue();
+                            $cl = app(\App\Services\ChecklistService::class)->parse($task->content ?? '');
+                        @endphp
+                        <div class="px-4 py-3 hover:bg-lime-50 transition-colors {{ $overdue ? 'border-l-4 border-red-500' : '' }}">
+                            <div class="flex items-center gap-3">
+                                <span class="shrink-0 w-3 h-3 border-2 border-black {{ $task->status_color }}"></span>
+
+                                <button wire:click="openTask({{ $task->id }})"
+                                        class="flex-1 text-left font-bold hover:underline truncate">
+                                    {{ $task->task_name }}
+                                </button>
+
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <span class="text-xs font-bold border-2 border-black px-1.5 py-0.5 bg-white">
+                                        {{ $task->project->client->name ?? '-' }} / {{ $task->project->project_name ?? '-' }}
+                                    </span>
+                                    @if($task->due_date)
+                                        <span class="text-xs font-bold border-2 border-black px-1.5 py-0.5 {{ $overdue ? 'bg-red-400 text-white' : 'bg-gray-100' }}">
+                                            {{ $task->due_date->format('d M') }}
+                                        </span>
+                                    @endif
+                                    <select wire:change="updateTaskStatus({{ $task->id }}, $event.target.value)"
+                                            class="text-xs border-2 border-black px-1.5 py-0.5 font-bold {{ $task->status_color }}">
+                                        <option value="todo" @selected($task->status === 'todo')>To Do</option>
+                                        <option value="in_progress" @selected($task->status === 'in_progress')>In Progress</option>
+                                        <option value="done" @selected($task->status === 'done')>Done</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            @if($cl['total'] > 0)
+                                <div class="mt-2 flex items-center gap-2">
+                                    <div class="flex-1 h-1.5 bg-gray-200 border border-black">
+                                        <div class="h-full bg-lime-500" style="width: {{ $cl['percent'] }}%"></div>
+                                    </div>
+                                    <span class="text-xs font-bold">{{ $cl['completed'] }}/{{ $cl['total'] }}</span>
+                                </div>
+                            @endif
+                        </div>
+                    @empty
+                        <div class="px-4 py-10 text-center font-bold text-gray-400">Belum ada pekerjaan.</div>
+                    @endforelse
+                </div>
+
+                <div class="px-4 py-3 border-t-4 border-black bg-lime-50 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-black uppercase">Rows</label>
+                        <select wire:model.live="perPage" class="neo-input text-sm bg-white py-1 px-2 min-w-[88px]">
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                    {{ $tasks->links() }}
+                </div>
+            </div>
+        @elseif($selectedProjectId)
             <div class="border-4 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 <div class="border-b-4 border-black bg-gradient-to-r from-lime-400 to-lime-300 px-4 py-3 flex items-center justify-between">
                     <h2 class="font-black text-lg uppercase">Tasks</h2>
@@ -121,9 +396,12 @@
                                             {{ $task->due_date->format('d M') }}
                                         </span>
                                     @endif
-                                    <span class="text-xs border-2 border-black px-1.5 py-0.5 font-bold {{ $task->status_color }}">
-                                        {{ $task->status_label }}
-                                    </span>
+                                    <select wire:change="updateTaskStatus({{ $task->id }}, $event.target.value)"
+                                            class="text-xs border-2 border-black px-1.5 py-0.5 font-bold {{ $task->status_color }}">
+                                        <option value="todo" @selected($task->status === 'todo')>To Do</option>
+                                        <option value="in_progress" @selected($task->status === 'in_progress')>In Progress</option>
+                                        <option value="done" @selected($task->status === 'done')>Done</option>
+                                    </select>
                                 </div>
                             </div>
 
@@ -150,6 +428,20 @@
                     @empty
                         <div class="px-4 py-10 text-center font-bold text-gray-400">No tasks yet. Add one above!</div>
                     @endforelse
+                </div>
+
+                <div class="px-4 py-3 border-t-4 border-black bg-lime-50 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-black uppercase">Rows</label>
+                        <select wire:model.live="perPage" class="neo-input text-sm bg-white py-1 px-2 min-w-[88px]">
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                    {{ $tasks->links() }}
                 </div>
             </div>
 
@@ -243,4 +535,5 @@
             </div>
         @endif
     </div>
+</div>
 </div>

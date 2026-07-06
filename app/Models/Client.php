@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 
 class Client extends Model
 {
-    protected $fillable = ['name', 'slug'];
+    protected $fillable = ['name', 'slug', 'sort_order'];
 
     protected static function booted(): void
     {

@@ -20,6 +20,15 @@
                active:translate-x-[2px] active:translate-y-[2px] active:shadow-none;
     }
 
+    .neo-btn:focus-visible {
+        outline: 2px solid #84cc16;
+        outline-offset: 2px;
+    }
+
+    .neo-btn.bg-black:focus-visible {
+        box-shadow: 4px 4px 0 0 #84cc16;
+    }
+
     /* Input / Textarea / Select */
     .neo-input {
         @apply border-4 border-black

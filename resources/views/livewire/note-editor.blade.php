@@ -23,19 +23,58 @@
         @endif
 
         {{-- Note List --}}
-        <div class="overflow-y-auto max-h-[75vh] divide-y-2 divide-black">
+        <div x-data="noteSorter($wire)" class="overflow-y-auto max-h-[75vh] divide-y-2 divide-black">
             @forelse($notes as $note)
-                <button wire:click="selectNote({{ $note->id }})"
-                        class="w-full text-left px-3 py-2 hover:bg-lime-50 transition-colors
-                            {{ $noteId === $note->id ? 'bg-lime-400 border-l-4 border-black' : '' }}">
-                    <p class="font-bold text-sm truncate">{{ $note->title }}</p>
-                    <p class="text-xs text-gray-500">{{ $note->updated_at->diffForHumans() }}</p>
-                </button>
+                <div data-sort-id="{{ $note->id }}"
+                     x-on:dragover.prevent
+                     x-on:drop="dropOn($event, {{ $note->id }})"
+                     class="px-3 py-2 hover:bg-lime-50 transition-colors flex items-center gap-2 {{ $noteId === $note->id ? 'bg-lime-400 border-l-4 border-black' : '' }}">
+                    <button wire:click="selectNote({{ $note->id }})"
+                            draggable="true"
+                            x-on:dragstart="startDrag($event, {{ $note->id }})"
+                            class="flex-1 text-left">
+                        <p class="font-bold text-sm truncate">{{ $note->title }}</p>
+                        <p class="text-xs text-gray-500">{{ $note->updated_at->diffForHumans() }}</p>
+                    </button>
+                </div>
             @empty
                 <div class="px-4 py-6 text-center text-sm font-bold text-gray-400">No notes yet.</div>
             @endforelse
         </div>
     </aside>
+
+    <script>
+        window.noteSorter = window.noteSorter || function noteSorter(wire) {
+            return {
+                startDrag(event, noteId) {
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', String(noteId));
+                },
+                dropOn(event, targetNoteId) {
+                    const raw = event.dataTransfer.getData('text/plain');
+                    const draggedId = Number(raw);
+                    const targetId = Number(targetNoteId);
+
+                    if (!draggedId || !targetId || draggedId === targetId) {
+                        return;
+                    }
+
+                    const ids = Array.from(event.currentTarget.parentElement.querySelectorAll('[data-sort-id]'))
+                        .map((el) => Number(el.dataset.sortId));
+
+                    const from = ids.indexOf(draggedId);
+                    const to = ids.indexOf(targetId);
+                    if (from === -1 || to === -1) {
+                        return;
+                    }
+
+                    ids.splice(from, 1);
+                    ids.splice(to, 0, draggedId);
+                    wire.reorderNotes(ids);
+                },
+            };
+        };
+    </script>
 
     {{-- Note Editor --}}
     <div class="flex-1 min-w-0">

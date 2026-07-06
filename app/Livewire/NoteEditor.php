@@ -6,6 +6,7 @@ use App\Models\Note;
 use App\Models\NoteCredential;
 use Livewire\Component;
 use Livewire\Attributes\Url;
+use Illuminate\Support\Facades\DB;
 
 class NoteEditor extends Component
 {
@@ -76,6 +77,7 @@ class NoteEditor extends Component
             'user_id' => auth()->id() ?? 1, // fallback for demo
             'title'   => $this->newTitle,
             'body'    => '',
+            'sort_order' => ((int) Note::where('user_id', auth()->id() ?? 1)->max('sort_order')) + 1,
         ]);
 
         $this->newTitle    = '';
@@ -90,6 +92,49 @@ class NoteEditor extends Component
         $this->title     = '';
         $this->body      = '';
         $this->isEditing = false;
+    }
+
+    public function moveNoteUp(int $id): void
+    {
+        $this->moveNote($id, -1);
+    }
+
+    public function moveNoteDown(int $id): void
+    {
+        $this->moveNote($id, 1);
+    }
+
+    public function reorderNotes(array $orderedIds): void
+    {
+        $orderedIds = array_values(array_unique(array_map('intval', $orderedIds)));
+        $userId = auth()->id() ?? 1;
+
+        $siblings = Note::where('user_id', $userId)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if (count($siblings) < 2 || count($orderedIds) !== count($siblings)) {
+            return;
+        }
+
+        $expected = $siblings;
+        sort($expected);
+        $received = $orderedIds;
+        sort($received);
+
+        if ($expected !== $received) {
+            return;
+        }
+
+        DB::transaction(function () use ($orderedIds): void {
+            foreach ($orderedIds as $index => $noteId) {
+                Note::where('id', $noteId)->update(['sort_order' => $index + 1]);
+            }
+        });
     }
 
     // --- Credentials ---
@@ -146,11 +191,57 @@ class NoteEditor extends Component
 
     public function render()
     {
-        $notes = Note::orderByDesc('updated_at')->get();
+        $notes = Note::where('user_id', auth()->id() ?? 1)
+            ->orderBy('sort_order')
+            ->orderByDesc('updated_at')
+            ->get();
 
         $currentNote  = $this->noteId ? Note::with('credentials', 'hashtags')->find($this->noteId) : null;
         $credentials  = $currentNote?->credentials ?? collect();
 
         return view('livewire.note-editor', compact('notes', 'currentNote', 'credentials'));
+    }
+
+    private function moveNote(int $noteId, int $direction): void
+    {
+        $note = Note::findOrFail($noteId);
+
+        $siblings = Note::where('user_id', $note->user_id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'sort_order'])
+            ->values();
+
+        if ($siblings->count() < 2) {
+            return;
+        }
+
+        foreach ($siblings as $index => $row) {
+            Note::where('id', $row->id)->update(['sort_order' => $index + 1]);
+        }
+
+        $siblings = Note::where('user_id', $note->user_id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'sort_order'])
+            ->values();
+
+        $currentIndex = $siblings->search(fn($row) => (int) $row->id === $noteId);
+        if ($currentIndex === false) {
+            return;
+        }
+
+        $targetIndex = $currentIndex + $direction;
+        if ($targetIndex < 0 || $targetIndex >= $siblings->count()) {
+            return;
+        }
+
+        DB::transaction(function () use ($siblings, $currentIndex, $targetIndex): void {
+            $current = $siblings[$currentIndex];
+            $target = $siblings[$targetIndex];
+
+            Note::where('id', $current->id)->update(['sort_order' => $target->sort_order]);
+            Note::where('id', $target->id)->update(['sort_order' => $current->sort_order]);
+        });
     }
 }
