@@ -65,6 +65,7 @@ class ProjectTaskList extends Component
     public string $editingClientName = '';
     public ?int $editingProjectId = null;
     public string $editingProjectName = '';
+    public bool $positionMode = false;
 
     public function selectProject(int $projectId): void
     {
@@ -197,12 +198,15 @@ class ProjectTaskList extends Component
             'taskDueDate' => 'nullable|date',
         ]);
 
+        $maxOrder = (int) Task::where('project_id', $this->selectedProjectId)->max('sort_order');
+
         Task::create([
             'project_id' => $this->selectedProjectId,
             'task_name'  => $this->taskName,
             'content'    => $this->taskContent,
             'status'     => $this->taskStatus,
             'due_date'   => $this->taskDueDate ?: null,
+            'sort_order' => $maxOrder + 1,
         ]);
 
         $this->resetTaskForm();
@@ -392,6 +396,99 @@ class ProjectTaskList extends Component
         session()->flash('success', 'Project berhasil dihapus.');
     }
 
+    public function moveTaskUp(int $taskId): void
+    {
+        $this->moveTask($taskId, -1);
+    }
+
+    public function moveTaskDown(int $taskId): void
+    {
+        $this->moveTask($taskId, 1);
+    }
+
+    public function togglePositionMode(): void
+    {
+        $this->positionMode = !$this->positionMode;
+    }
+
+    public function reorderTasks(array $orderedIds): void
+    {
+        if (!$this->selectedProjectId) {
+            return;
+        }
+
+        $orderedIds = array_values(array_unique(array_map('intval', $orderedIds)));
+
+        $siblings = Task::where('project_id', $this->selectedProjectId)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->values()
+            ->all();
+
+        if (count($siblings) < 2 || count($orderedIds) !== count($siblings)) {
+            return;
+        }
+
+        $expected = $siblings;
+        sort($expected);
+        $received = $orderedIds;
+        sort($received);
+
+        if ($expected !== $received) {
+            return;
+        }
+
+        DB::transaction(function () use ($orderedIds): void {
+            foreach ($orderedIds as $index => $taskId) {
+                Task::where('id', $taskId)->update(['sort_order' => $index + 1]);
+            }
+        });
+
+        $this->dispatch('task-order-saved');
+    }
+
+    private function moveTask(int $taskId, int $direction): void
+    {
+        $task = Task::findOrFail($taskId);
+
+        $siblings = Task::where('project_id', $task->project_id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'sort_order']);
+
+        // Normalise sort_order so it's a clean sequence
+        foreach ($siblings as $index => $row) {
+            $row->sort_order = $index + 1;
+            $row->save();
+        }
+
+        $siblings = Task::where('project_id', $task->project_id)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'sort_order'])
+            ->values();
+
+        $currentIndex = $siblings->search(fn($row) => (int) $row->id === $taskId);
+        if ($currentIndex === false) {
+            return;
+        }
+
+        $targetIndex = $currentIndex + $direction;
+        if ($targetIndex < 0 || $targetIndex >= $siblings->count()) {
+            return;
+        }
+
+        DB::transaction(function () use ($siblings, $currentIndex, $targetIndex): void {
+            $current = $siblings[$currentIndex];
+            $target  = $siblings[$targetIndex];
+
+            Task::where('id', $current->id)->update(['sort_order' => $target->sort_order]);
+            Task::where('id', $target->id)->update(['sort_order' => $current->sort_order]);
+        });
+    }
+
     public function reorderClients(array $orderedIds): void
     {
         $orderedIds = array_values(array_unique(array_map('intval', $orderedIds)));
@@ -533,7 +630,8 @@ class ProjectTaskList extends Component
                     ->when(count($this->activeStatuses()) > 0, function ($q) {
                         $q->whereIn('status', $this->activeStatuses());
                     })
-                    ->orderBy('due_date')
+                    ->orderBy('sort_order')
+                    ->orderBy('id')
                     ->paginate($this->perPage)
                 : collect());
 

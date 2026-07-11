@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class Task extends Model
 {
-    protected $fillable = ['project_id', 'task_name', 'content', 'status', 'due_date'];
+    protected $fillable = ['project_id', 'task_name', 'content', 'status', 'due_date', 'sort_order'];
 
     protected $casts = [
         'due_date' => 'date',

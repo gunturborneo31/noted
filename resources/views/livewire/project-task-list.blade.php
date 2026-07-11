@@ -1,34 +1,38 @@
-<div class="space-y-4" x-data="{ orderSaved: false, clientOrderSaved: false, showSaved(){ this.orderSaved = true; clearTimeout(this._savedTimer); this._savedTimer = setTimeout(() => this.orderSaved = false, 1000); }, showClientSaved(){ this.clientOrderSaved = true; clearTimeout(this._clientSavedTimer); this._clientSavedTimer = setTimeout(() => this.clientOrderSaved = false, 1000); } }" x-on:project-order-saved.window="showSaved()" x-on:client-order-saved.window="showClientSaved()">
-    <div class="neo-card p-3 flex flex-wrap items-center gap-2 bg-lime-50">
-        <span class="text-xs font-black uppercase">View:</span>
-        <button wire:click="setViewMode('project')"
-                class="neo-btn text-sm px-3 py-1 {{ $viewMode === 'project' ? 'bg-black text-lime-400' : 'bg-white text-black' }}">
-            Per Project
-        </button>
-        <button wire:click="setViewMode('all')"
-                class="neo-btn text-sm px-3 py-1 {{ $viewMode === 'all' ? 'bg-black text-lime-400' : 'bg-white text-black' }}">
-            Semua Pekerjaan
-        </button>
-
-        <span class="text-xs font-black uppercase ml-3">Status:</span>
-        <label class="inline-flex items-center gap-1 text-xs font-bold border-2 border-black bg-white px-2 py-1 cursor-pointer">
-            <input type="checkbox" wire:model.live="statusFilters.todo" class="w-3.5 h-3.5 border-black" />
-            To Do
-        </label>
-        <label class="inline-flex items-center gap-1 text-xs font-bold border-2 border-black bg-white px-2 py-1 cursor-pointer">
-            <input type="checkbox" wire:model.live="statusFilters.in_progress" class="w-3.5 h-3.5 border-black" />
-            In Progress
-        </label>
-        <label class="inline-flex items-center gap-1 text-xs font-bold border-2 border-black bg-white px-2 py-1 cursor-pointer">
-            <input type="checkbox" wire:model.live="statusFilters.done" class="w-3.5 h-3.5 border-black" />
-            Done
-        </label>
+    <div class="space-y-4" x-data="{ orderSaved: false, positionSaved: false, showSaved(){ this.orderSaved = true; clearTimeout(this._savedTimer); this._savedTimer = setTimeout(() => this.orderSaved = false, 1000); }, showPositionSaved(){ this.positionSaved = true; clearTimeout(this._posSavedTimer); this._posSavedTimer = setTimeout(() => this.positionSaved = false, 1000); } }" x-on:project-order-saved.window="showSaved()" x-on:task-order-saved.window="showPositionSaved()">
+    <div class="neo-card p-3 bg-lime-50 space-y-2">
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-black uppercase">View:</span>
+            <button wire:click="setViewMode('project')"
+                    class="neo-btn text-sm px-3 py-1 {{ $viewMode === 'project' ? 'bg-black text-lime-400' : 'bg-white text-black' }}">
+                Per Project
+            </button>
+            <button wire:click="setViewMode('all')"
+                    class="neo-btn text-sm px-3 py-1 {{ $viewMode === 'all' ? 'bg-black text-lime-400' : 'bg-white text-black' }}">
+                Semua Pekerjaan
+            </button>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-black uppercase">Status:</span>
+            <label class="inline-flex items-center gap-1 text-xs font-bold border-2 border-black bg-white px-2 py-1 cursor-pointer">
+                <input type="checkbox" wire:model.live="statusFilters.todo" class="w-3.5 h-3.5 border-black" />
+                To Do
+            </label>
+            <label class="inline-flex items-center gap-1 text-xs font-bold border-2 border-black bg-white px-2 py-1 cursor-pointer">
+                <input type="checkbox" wire:model.live="statusFilters.in_progress" class="w-3.5 h-3.5 border-black" />
+                In Progress
+            </label>
+            <label class="inline-flex items-center gap-1 text-xs font-bold border-2 border-black bg-white px-2 py-1 cursor-pointer">
+                <input type="checkbox" wire:model.live="statusFilters.done" class="w-3.5 h-3.5 border-black" />
+                Done
+            </label>
+        </div>
     </div>
 
-<div class="flex gap-0 min-h-[80vh]">
+<div class="flex flex-col md:flex-row md:gap-6 min-h-[80vh]">
 
     {{-- Sidebar: Client → Project Tree --}}
-    <aside class="w-full md:w-64 shrink-0 border-4 border-black bg-gradient-to-b from-lime-50 to-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] md:mr-6 mb-6 md:mb-0 self-start {{ $viewMode === 'all' ? 'hidden md:hidden' : '' }}">
+    <aside class="w-full md:w-64 shrink-0 border-4 border-black bg-gradient-to-b from-lime-50 to-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-4 md:mb-0 self-start
+        {{ $viewMode === 'all' ? 'hidden' : ($selectedProjectId ? 'hidden md:block' : 'block') }}">
         <div class="border-b-4 border-black bg-lime-400 px-4 py-3 flex items-center justify-between">
             <div class="flex items-center gap-2">
                 <span class="font-black uppercase text-sm">Projects</span>
@@ -245,6 +249,62 @@
                 },
             };
         };
+
+        window.taskSorter = window.taskSorter || function taskSorter(projectId, wire) {
+            return {
+                draggingId: null,
+                startDrag(event, taskId) {
+                    this.draggingId = Number(taskId);
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', JSON.stringify({ type: 'task', projectId, taskId }));
+                },
+                endDrag() {
+                    this.draggingId = null;
+                },
+                dropOn(event, targetTaskId) {
+                    event.preventDefault();
+                    const raw = event.dataTransfer.getData('text/plain');
+                    if (!raw) return;
+
+                    let payload;
+                    try {
+                        payload = JSON.parse(raw);
+                    } catch (_) {
+                        return;
+                    }
+
+                    if (payload.type !== 'task') {
+                        return;
+                    }
+
+                    if (Number(payload.projectId) !== Number(projectId)) {
+                        return;
+                    }
+
+                    const draggedId = Number(payload.taskId);
+                    const targetId = Number(targetTaskId);
+                    if (!draggedId || !targetId || draggedId === targetId) {
+                        this.draggingId = null;
+                        return;
+                    }
+
+                    const ids = Array.from(event.currentTarget.parentElement.querySelectorAll(':scope > [data-task-id]'))
+                        .map((el) => Number(el.dataset.taskId));
+
+                    const from = ids.indexOf(draggedId);
+                    const to = ids.indexOf(targetId);
+                    if (from === -1 || to === -1) {
+                        this.draggingId = null;
+                        return;
+                    }
+
+                    ids.splice(from, 1);
+                    ids.splice(to, 0, draggedId);
+                    wire.reorderTasks(ids);
+                    this.draggingId = null;
+                },
+            };
+        };
     </script>
 
     {{-- Task List --}}
@@ -284,31 +344,31 @@
                             $overdue = $task->isOverdue();
                             $cl = app(\App\Services\ChecklistService::class)->parse($task->content ?? '');
                         @endphp
-                        <div class="px-4 py-3 hover:bg-lime-50 transition-colors {{ $overdue ? 'border-l-4 border-red-500' : '' }}">
-                            <div class="flex items-center gap-3">
+                        <div class="px-3 py-3 hover:bg-lime-50 transition-colors {{ $overdue ? 'border-l-4 border-red-500' : '' }}">
+                            {{-- Row 1: dot + name --}}
+                            <div class="flex items-center gap-2">
                                 <span class="shrink-0 w-3 h-3 border-2 border-black {{ $task->status_color }}"></span>
-
                                 <button wire:click="openTask({{ $task->id }})"
-                                        class="flex-1 text-left font-bold hover:underline truncate">
+                                        class="flex-1 text-left font-bold hover:underline min-w-0 truncate">
                                     {{ $task->task_name }}
                                 </button>
-
-                                <div class="flex items-center gap-2 shrink-0">
-                                    <span class="text-xs font-bold border-2 border-black px-1.5 py-0.5 bg-white">
-                                        {{ $task->project->client->name ?? '-' }} / {{ $task->project->project_name ?? '-' }}
+                            </div>
+                            {{-- Row 2: project label + due date + status --}}
+                            <div class="flex flex-wrap items-center gap-1.5 mt-1.5 pl-5">
+                                <span class="text-xs font-bold border-2 border-black px-1.5 py-0.5 bg-white truncate max-w-[160px]">
+                                    {{ $task->project->client->name ?? '-' }} / {{ $task->project->project_name ?? '-' }}
+                                </span>
+                                @if($task->due_date)
+                                    <span class="text-xs font-bold border-2 border-black px-1.5 py-0.5 shrink-0 {{ $overdue ? 'bg-red-400 text-white' : 'bg-gray-100' }}">
+                                        {{ $task->due_date->format('d M') }}
                                     </span>
-                                    @if($task->due_date)
-                                        <span class="text-xs font-bold border-2 border-black px-1.5 py-0.5 {{ $overdue ? 'bg-red-400 text-white' : 'bg-gray-100' }}">
-                                            {{ $task->due_date->format('d M') }}
-                                        </span>
-                                    @endif
-                                    <select wire:change="updateTaskStatus({{ $task->id }}, $event.target.value)"
-                                            class="text-xs border-2 border-black px-1.5 py-0.5 font-bold {{ $task->status_color }}">
-                                        <option value="todo" @selected($task->status === 'todo')>To Do</option>
-                                        <option value="in_progress" @selected($task->status === 'in_progress')>In Progress</option>
-                                        <option value="done" @selected($task->status === 'done')>Done</option>
-                                    </select>
-                                </div>
+                                @endif
+                                <select wire:change="updateTaskStatus({{ $task->id }}, $event.target.value)"
+                                        class="text-xs border-2 border-black px-1.5 py-0.5 font-bold {{ $task->status_color }}">
+                                    <option value="todo" @selected($task->status === 'todo')>To Do</option>
+                                    <option value="in_progress" @selected($task->status === 'in_progress')>In Progress</option>
+                                    <option value="done" @selected($task->status === 'done')>Done</option>
+                                </select>
                             </div>
 
                             @if($cl['total'] > 0)
@@ -341,10 +401,19 @@
             </div>
         @elseif($selectedProjectId)
             <div class="border-4 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                <div class="border-b-4 border-black bg-gradient-to-r from-lime-400 to-lime-300 px-4 py-3 flex items-center justify-between">
-                    <h2 class="font-black text-lg uppercase">Tasks</h2>
-                    <button wire:click="$set('showCreateTask', true)"
-                            class="neo-btn bg-black text-lime-400 text-sm px-3 py-1">+ Add Task</button>
+                <div class="border-b-4 border-black bg-gradient-to-r from-lime-400 to-lime-300 px-4 py-3 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <button wire:click="$set('selectedProjectId', null)"
+                                class="md:hidden neo-btn bg-white text-black text-xs px-2 py-1">← Back</button>
+                        <h2 class="font-black text-lg uppercase">Tasks</h2>
+                        <span x-show="positionSaved" x-transition.opacity class="text-[10px] font-black uppercase border-2 border-black bg-black text-lime-400 px-1.5 py-0.5">Urutan Tersimpan</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button wire:click="togglePositionMode"
+                                class="neo-btn text-xs {{ $positionMode ? 'bg-black text-lime-400' : 'bg-white text-black' }} px-2 py-1">📍 Posisi</button>
+                        <button wire:click="$set('showCreateTask', true)"
+                                class="neo-btn bg-black text-lime-400 text-sm px-3 py-1">+ Add Task</button>
+                    </div>
                 </div>
 
                 {{-- New Task Form --}}
@@ -373,36 +442,58 @@
                 @endif
 
                 {{-- Task Rows --}}
-                <div class="divide-y-2 divide-black">
+                <div class="divide-y-2 divide-black" x-data="taskSorter({{ $selectedProjectId }}, $wire)">
                     @forelse($tasks as $task)
                         @php
                             $overdue = $task->isOverdue();
                             $cl = app(\App\Services\ChecklistService::class)->parse($task->content ?? '');
                         @endphp
-                        <div class="px-4 py-3 hover:bg-lime-50 transition-colors {{ $overdue ? 'border-l-4 border-red-500' : '' }}">
-                            <div class="flex items-center gap-3">
-                                {{-- Status dot --}}
-                                <span class="shrink-0 w-3 h-3 border-2 border-black {{ $task->status_color }}"></span>
-
+                        <div data-task-id="{{ $task->id }}"
+                             x-on:dragover.prevent
+                             x-on:drop="dropOn($event, {{ $task->id }})"
+                             x-bind:class="draggingId === {{ $task->id }} ? 'opacity-60 border-2 border-dashed border-black' : ''"
+                             class="px-3 py-3 hover:bg-lime-50 transition-colors {{ $overdue ? 'border-l-4 border-red-500' : '' }}">
+                            {{-- Row 1: dot + drag handle (if positionMode) + name --}}
+                            <div class="flex items-center gap-2">
+                                @if($positionMode)
+                                    <button draggable="true"
+                                            x-on:dragstart="startDrag($event, {{ $task->id }})"
+                                            x-on:dragend="endDrag()"
+                                            title="Geser untuk ubah urutan"
+                                            class="shrink-0 cursor-grab active:cursor-grabbing text-xl hover:bg-lime-200 px-1">⋮⋮</button>
+                                @else
+                                    <span class="shrink-0 w-3 h-3 border-2 border-black {{ $task->status_color }}"></span>
+                                @endif
                                 <button wire:click="openTask({{ $task->id }})"
-                                        class="flex-1 text-left font-bold hover:underline truncate">
+                                        {{ $positionMode ? 'disabled' : '' }}
+                                        class="flex-1 text-left font-bold hover:underline min-w-0 truncate {{ $positionMode ? 'opacity-50 cursor-not-allowed' : '' }}">
                                     {{ $task->task_name }}
                                 </button>
-
-                                <div class="flex items-center gap-2 shrink-0">
-                                    @if($task->due_date)
-                                        <span class="text-xs font-bold border-2 border-black px-1.5 py-0.5
-                                            {{ $overdue ? 'bg-red-400 text-white' : 'bg-gray-100' }}">
-                                            {{ $task->due_date->format('d M') }}
-                                        </span>
-                                    @endif
-                                    <select wire:change="updateTaskStatus({{ $task->id }}, $event.target.value)"
-                                            class="text-xs border-2 border-black px-1.5 py-0.5 font-bold {{ $task->status_color }}">
-                                        <option value="todo" @selected($task->status === 'todo')>To Do</option>
-                                        <option value="in_progress" @selected($task->status === 'in_progress')>In Progress</option>
-                                        <option value="done" @selected($task->status === 'done')>Done</option>
-                                    </select>
-                                </div>
+                            </div>
+                            {{-- Row 2: move buttons + meta --}}
+                            <div class="flex items-center gap-2 mt-1.5 pl-5">
+                                @if(!$positionMode)
+                                    <div class="flex gap-0.5 shrink-0">
+                                        <button wire:click="moveTaskUp({{ $task->id }})"
+                                                title="Geser ke atas"
+                                                class="neo-btn bg-white text-black text-[10px] leading-none px-1.5 py-0.5 border border-black hover:bg-lime-200">▲</button>
+                                        <button wire:click="moveTaskDown({{ $task->id }})"
+                                                title="Geser ke bawah"
+                                                class="neo-btn bg-white text-black text-[10px] leading-none px-1.5 py-0.5 border border-black hover:bg-lime-200">▼</button>
+                                    </div>
+                                @endif
+                                @if($task->due_date)
+                                    <span class="text-xs font-bold border-2 border-black px-1.5 py-0.5 shrink-0
+                                        {{ $overdue ? 'bg-red-400 text-white' : 'bg-gray-100' }}">
+                                        {{ $task->due_date->format('d M') }}
+                                    </span>
+                                @endif
+                                <select wire:change="updateTaskStatus({{ $task->id }}, $event.target.value)" {{ $positionMode ? 'disabled' : '' }}
+                                        class="text-xs border-2 border-black px-1.5 py-0.5 font-bold {{ $task->status_color }} min-w-0 {{ $positionMode ? 'opacity-50 cursor-not-allowed' : '' }}">
+                                    <option value="todo" @selected($task->status === 'todo')>To Do</option>
+                                    <option value="in_progress" @selected($task->status === 'in_progress')>In Progress</option>
+                                    <option value="done" @selected($task->status === 'done')>Done</option>
+                                </select>
                             </div>
 
                             {{-- Checklist mini-progress --}}
@@ -529,7 +620,7 @@
             @endif
 
         @else
-            <div class="border-4 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-12 text-center">
+            <div class="border-4 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] p-12 text-center hidden md:block">
                 <p class="text-4xl mb-4">👈</p>
                 <p class="font-black text-xl">Select a project to view tasks</p>
             </div>

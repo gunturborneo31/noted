@@ -34,6 +34,14 @@
                    class="neo-btn {{ request()->routeIs('projects') ? 'bg-black text-lime-400' : 'bg-white text-black' }}">
                     Projects
                 </a>
+                <a href="{{ route('ai') }}"
+                   class="neo-btn {{ request()->routeIs('ai') ? 'bg-black text-lime-400' : 'bg-white text-black' }}">
+                    AI
+                </a>
+                     <a href="{{ route('cashflow') }}"
+                         class="neo-btn {{ request()->routeIs('cashflow') ? 'bg-black text-lime-400' : 'bg-white text-black' }}">
+                          Cashflow
+                     </a>
                 <a href="{{ route('notes') }}"
                    class="neo-btn {{ request()->routeIs('notes') ? 'bg-black text-lime-400' : 'bg-white text-black' }}">
                     Notes
@@ -69,6 +77,8 @@
                      class="absolute top-full left-0 right-0 bg-lime-300 border-b-4 border-black z-50 space-y-1 py-1">
                     <a href="{{ route('dashboard') }}" class="block px-4 py-3 border-b-2 border-black font-bold hover:bg-lime-400">Dashboard</a>
                     <a href="{{ route('projects') }}" class="block px-4 py-3 border-b-2 border-black font-bold hover:bg-lime-400">Projects</a>
+                    <a href="{{ route('ai') }}" class="block px-4 py-3 border-b-2 border-black font-bold hover:bg-lime-400">AI</a>
+                    <a href="{{ route('cashflow') }}" class="block px-4 py-3 border-b-2 border-black font-bold hover:bg-lime-400">Cashflow</a>
                     <a href="{{ route('notes') }}" class="block px-4 py-3 border-b-2 border-black font-bold hover:bg-lime-400">Notes</a>
                     <a href="{{ route('accounts') }}" class="block px-4 py-3 border-b-2 border-black font-bold hover:bg-lime-400 mt-2">Accounts</a>
                     <a href="{{ route('hashtags') }}" class="block px-4 py-3 font-bold hover:bg-lime-400">#Tags</a>

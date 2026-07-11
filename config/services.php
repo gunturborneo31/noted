@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'ai' => [
+        'api_key' => env('AI_API_KEY'),
+        'base_url' => env('AI_BASE_URL', 'https://api.openai.com/v1'),
+        'chat_model' => env('AI_CHAT_MODEL', 'gpt-4.1-mini'),
+        'transcription_model' => env('AI_TRANSCRIPTION_MODEL', 'gpt-4o-mini-transcribe'),
+        'timeout' => env('AI_TIMEOUT', 120),
+    ],
+
 ];
