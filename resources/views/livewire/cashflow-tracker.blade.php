@@ -239,6 +239,15 @@
 
                         <div class="neo-card p-4 bg-white space-y-3">
                             <div class="flex items-center justify-between gap-2">
+                                <h2 class="font-black text-lg uppercase">Rekapan Teks</h2>
+                                <button type="button" onclick="copyCashflowRecap(this)" class="neo-btn bg-black text-lime-400 text-xs px-2 py-1">Copy</button>
+                            </div>
+                            <p class="text-xs font-bold text-gray-600">Siap kirim ke orang lain. Format mencakup nama, jumlah, total, dan total keseluruhan.</p>
+                            <textarea id="cashflow-recap-text" readonly class="neo-input w-full text-xs min-h-[15rem] leading-relaxed">{{ $recapText }}</textarea>
+                        </div>
+
+                        <div class="neo-card p-4 bg-white space-y-3">
+                            <div class="flex items-center justify-between gap-2">
                                 <h2 class="font-black text-lg uppercase">Subtotal {{ $summaryGroupBy === 'month' ? 'Per Bulan' : 'Per Hari' }}</h2>
                                 <span class="neo-badge bg-white">{{ $groupSummaries->count() }} periode</span>
                             </div>
@@ -274,4 +283,33 @@
             @endif
         </div>
     </div>
+
+    @once
+        <script>
+            function copyCashflowRecap(button) {
+                const textarea = document.getElementById('cashflow-recap-text');
+                if (!textarea) {
+                    return;
+                }
+
+                const writeClipboard = navigator.clipboard && navigator.clipboard.writeText
+                    ? navigator.clipboard.writeText(textarea.value)
+                    : Promise.reject();
+
+                writeClipboard
+                    .catch(() => {
+                        textarea.focus();
+                        textarea.select();
+                        document.execCommand('copy');
+                    })
+                    .finally(() => {
+                        const original = button.textContent;
+                        button.textContent = 'Tersalin';
+                        setTimeout(() => {
+                            button.textContent = original;
+                        }, 1200);
+                    });
+            }
+        </script>
+    @endonce
 </div>

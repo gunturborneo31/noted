@@ -425,6 +425,84 @@ class CashflowTracker extends Component
                 ];
             });
 
+        $recapRows = CashflowEntry::query()
+            ->join('cashflow_people', 'cashflow_people.id', '=', 'cashflow_entries.person_id')
+            ->when($this->selectedPersonId, fn($query) => $query->where('cashflow_entries.person_id', $this->selectedPersonId))
+            ->when($this->dateFrom !== '', fn($query) => $query->whereDate('cashflow_entries.entry_date', '>=', $this->dateFrom))
+            ->when($this->dateTo !== '', fn($query) => $query->whereDate('cashflow_entries.entry_date', '<=', $this->dateTo))
+            ->orderBy('cashflow_people.sort_order')
+            ->orderBy('cashflow_people.name')
+            ->orderByDesc('cashflow_entries.entry_date')
+            ->orderByDesc('cashflow_entries.id')
+            ->get([
+                'cashflow_entries.id',
+                'cashflow_entries.entry_type',
+                'cashflow_entries.quantity',
+                'cashflow_entries.total',
+                'cashflow_entries.description',
+                'cashflow_entries.entry_date',
+                'cashflow_people.id as person_id',
+                'cashflow_people.name as person_name',
+            ]);
+
+        $recapLines = ['REKAP CASHFLOW'];
+
+        if ($this->dateFrom !== '' || $this->dateTo !== '') {
+            $fromLabel = $this->dateFrom !== '' ? $this->dateFrom : '-';
+            $toLabel = $this->dateTo !== '' ? $this->dateTo : '-';
+            $recapLines[] = 'Periode: '.$fromLabel.' s/d '.$toLabel;
+        }
+
+        $recapLines[] = '';
+
+        $grandQuantity = 0;
+        $grandTotal = 0.0;
+
+        $groupedRecapRows = $recapRows->groupBy('person_id');
+
+        foreach ($groupedRecapRows as $personRows) {
+            $personName = (string) ($personRows->first()->person_name ?? '-');
+            $personQuantity = (int) $personRows->sum('quantity');
+            $personTotal = (float) $personRows->sum('total');
+
+            $recapLines[] = 'Nama: '.$personName;
+
+            foreach ($personRows as $index => $row) {
+                $label = trim((string) ($row->description ?? ''));
+                if ($label === '') {
+                    $label = ucfirst((string) $row->entry_type).' #'.$row->id;
+                }
+
+                $entryDate = $row->entry_date instanceof CarbonInterface
+                    ? $row->entry_date->format('d-m-Y')
+                    : '-';
+
+                $recapLines[] = ($index + 1).'. '.$label;
+                $recapLines[] = '   Tanggal: '.$entryDate;
+                $recapLines[] = '   Jumlah: '.(int) $row->quantity;
+                $recapLines[] = '   Total: Rp '.number_format((float) $row->total, 0, ',', '.');
+            }
+
+            $recapLines[] = 'Subtotal '.$personName.':' ;
+            $recapLines[] = '- Jumlah: '.$personQuantity;
+            $recapLines[] = '- Total: Rp '.number_format($personTotal, 0, ',', '.');
+            $recapLines[] = '';
+
+            $grandQuantity += $personQuantity;
+            $grandTotal += $personTotal;
+        }
+
+        if ($groupedRecapRows->isEmpty()) {
+            $recapLines[] = 'Belum ada data cashflow pada filter saat ini.';
+            $recapLines[] = '';
+        }
+
+        $recapLines[] = 'TOTAL KESELURUHAN';
+        $recapLines[] = '- Jumlah: '.$grandQuantity;
+        $recapLines[] = '- Total: Rp '.number_format($grandTotal, 0, ',', '.');
+
+        $recapText = implode(PHP_EOL, $recapLines);
+
         return view('livewire.cashflow-tracker', [
             'people' => $people,
             'entries' => $entries,
@@ -433,6 +511,7 @@ class CashflowTracker extends Component
             'balance' => $balance,
             'groupSummaries' => $groupSummaries,
             'selectedPerson' => $this->selectedPersonId ? $people->firstWhere('id', $this->selectedPersonId) : null,
+            'recapText' => $recapText,
         ]);
     }
 
